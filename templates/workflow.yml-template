@@ -1,0 +1,64 @@
+%%GENERATED_WARNING%%
+name: Build and publish images to Docker Hub
+
+on:
+  push:
+    branches:
+      - trunk
+    paths:
+      - 'config/**'
+      - 'entrypoint/**'
+      - 'images/**'
+      - '.github/workflows/docker-hub.yml'
+  workflow_dispatch:
+  # Once weekly On Sundays at 00:00 UTC.
+  schedule:
+    - cron: '0 0 * * 0'
+
+env:
+  REGISTRY_USERNAME: spacedmonkey
+  REGISTRY_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  PACKAGE_REGISTRY_HOST:
+  PACKAGE_REGISTRY: spacedmonkey
+  PR_TAG:
+# Cancels all previous workflow runs for pull requests that have not completed.
+concurrency:
+  # The concurrency group contains the workflow name and the branch name for pull requests
+  # or the commit hash for any other events.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build-php-images:
+    name: PHP ${{ matrix.php }} Image
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: [ %%PHP_VERSION_LIST%% ]
+    env:
+      PHP_VERSION: ${{ matrix.php }}
+      PHP_LATEST: '%%PHP_LATEST%%'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # v3.2.0
+
+      - name: Login to the package registry
+        run: |
+          echo "$REGISTRY_PASSWORD" | docker login $PACKAGE_REGISTRY_HOST -u "$REGISTRY_USERNAME" --password-stdin
+
+      - name: Build Docker image
+        run: docker build --build-arg PACKAGE_REGISTRY=$PACKAGE_REGISTRY --build-arg PR_TAG=$PR_TAG -t $PACKAGE_REGISTRY/php-blackfire:$PHP_VERSION-fpm$PR_TAG images/$PHP_VERSION/php
+
+      - name: Log Docker images
+        run: docker images
+
+      - name: Push Docker image
+        run: docker push $PACKAGE_REGISTRY/php-blackfire:$PHP_VERSION-fpm$PR_TAG
+
+      - name: Push image as latest
+        if: ${{ env.PHP_LATEST == env.PHP_VERSION }}
+        run: |
+          docker image tag $PACKAGE_REGISTRY/php-blackfire:$PHP_VERSION-fpm$PR_TAG $PACKAGE_REGISTRY/php-blackfire:latest$PR_TAG
+          docker images
+          docker push $PACKAGE_REGISTRY/php-blackfire:latest$PR_TAG
