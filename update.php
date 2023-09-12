@@ -67,6 +67,11 @@ $php_versions = array(
 			'base_name'       => 'wordpressdevelop/php:8.2-fpm',
 		 ),
 	),
+	'8.3' => array(
+		'php' => array(
+			'base_name'       => 'wordpressdevelop/php:8.3-fpm',
+		 ),
+	),
 );
 
 
